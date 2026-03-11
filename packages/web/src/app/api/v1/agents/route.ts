@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { authOptions } from '@/lib/auth';
-import { generateApiKey } from '@/lib/api-key';
+import { generateApiKey, hashApiKey } from '@/lib/api-key';
 import { logger } from '@/lib/logger';
 
 const createAgentSchema = z.object({
@@ -74,12 +74,13 @@ export async function POST(req: NextRequest) {
       data: {
         name: parsed.data.name,
         organizationId: session.user.organizationId,
-        apiKey,
+        apiKeyHash: hashApiKey(apiKey),
       },
     });
 
     logger.info('Agent created', { agentId: agent.id, userId: session.user.id });
-    return NextResponse.json({ agent }, { status: 201 });
+    // Return the raw key only on creation — it cannot be retrieved later
+    return NextResponse.json({ agent: { ...agent, apiKey }, apiKey }, { status: 201 });
   } catch (err) {
     logger.error('POST /api/v1/agents failed', { error: String(err) });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

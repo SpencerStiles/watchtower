@@ -45,7 +45,7 @@ export function AlertsClient({ agentId, initialAlerts }: Props) {
       case 'ERROR_SPIKE':
         return { maxErrorRate: Number(value) / 100 };
       case 'BUDGET_EXCEEDED':
-        return { limitDollars: Number(value) };
+        return { maxCostCents: Math.round(Number(value) * 100) };
       case 'FLAG_TYPE':
         return { category: value };
       default:

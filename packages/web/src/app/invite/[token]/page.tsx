@@ -66,27 +66,12 @@ export default async function InvitePage({ params, searchParams }: InvitePagePro
       redirect('/');
     }
 
-    // Get or create user
+    // Require authentication — redirect to login if not signed in
     const session = await getServerSession(authOptions);
-    let userId: string;
-
-    if (session?.user?.id) {
-      userId = session.user.id;
-    } else {
-      // Create a new BUSINESS_OWNER user record for the invited email
-      const existing = await prisma.user.findUnique({ where: { email: inv.email } });
-      if (existing) {
-        userId = existing.id;
-      } else {
-        const newUser = await prisma.user.create({
-          data: {
-            email: inv.email,
-            role: 'BUSINESS_OWNER',
-          },
-        });
-        userId = newUser.id;
-      }
+    if (!session?.user?.id) {
+      redirect(`/login?callbackUrl=/invite/${token}?tier=${billingTier}`);
     }
+    const userId = session.user.id;
 
     // Create Stripe checkout session
     const plan = PLANS[billingTier];

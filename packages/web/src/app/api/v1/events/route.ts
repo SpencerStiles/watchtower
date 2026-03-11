@@ -60,113 +60,123 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Process each event
+  // Process each event inside a transaction for atomicity
   const agentConfig = (agent.config as Record<string, unknown>) ?? {};
+  let latestConversationScore = 0;
+  let latestEventCount = 0;
 
-  for (const eventData of parsed.data) {
-    const costCents = calculateCostCents(eventData.model, eventData.inputTokens, eventData.outputTokens);
+  await prisma.$transaction(async (tx) => {
+    let currentAgentScore = agent.qualityScore;
 
-    // Find or create conversation
-    const conversation = await prisma.conversation.upsert({
-      where: {
-        sessionId_agentId: {
-          sessionId: eventData.sessionId,
-          agentId: agent.id,
+    for (const eventData of parsed.data) {
+      const costCents = calculateCostCents(eventData.model, eventData.inputTokens, eventData.outputTokens);
+
+      // Find or create conversation
+      const conversation = await tx.conversation.upsert({
+        where: {
+          sessionId_agentId: {
+            sessionId: eventData.sessionId,
+            agentId: agent.id,
+          },
         },
-      },
-      create: {
-        agentId: agent.id,
-        sessionId: eventData.sessionId,
-        eventCount: 0,
-        totalTokens: 0,
-        totalCostCents: 0,
-      },
-      update: {},
-    });
+        create: {
+          agentId: agent.id,
+          sessionId: eventData.sessionId,
+          eventCount: 0,
+          totalTokens: 0,
+          totalCostCents: 0,
+        },
+        update: {},
+      });
 
-    // Create event
-    const event = await prisma.event.create({
-      data: {
-        conversationId: conversation.id,
-        agentId: agent.id,
-        provider: eventData.provider === 'anthropic' ? 'ANTHROPIC' : 'OPENAI',
-        model: eventData.model,
-        inputTokens: eventData.inputTokens,
-        outputTokens: eventData.outputTokens,
-        costCents,
-        latencyMs: eventData.latencyMs,
-        requestBody: eventData.requestBody as Record<string, unknown>,
-        responseBody: eventData.responseBody as Record<string, unknown>,
+      // Create event
+      const event = await tx.event.create({
+        data: {
+          conversationId: conversation.id,
+          agentId: agent.id,
+          provider: eventData.provider === 'anthropic' ? 'ANTHROPIC' : 'OPENAI',
+          model: eventData.model,
+          inputTokens: eventData.inputTokens,
+          outputTokens: eventData.outputTokens,
+          costCents,
+          latencyMs: eventData.latencyMs,
+          requestBody: eventData.requestBody as Record<string, unknown>,
+          responseBody: eventData.responseBody as Record<string, unknown>,
+          isError: eventData.isError,
+          errorMessage: eventData.errorMessage,
+        },
+      });
+
+      // Quality scoring
+      const responseText = extractResponseText(eventData.responseBody, eventData.provider);
+      const { flags } = scoreEvent({
+        responseText,
         isError: eventData.isError,
         errorMessage: eventData.errorMessage,
-      },
-    });
-
-    // Quality scoring
-    const responseText = extractResponseText(eventData.responseBody, eventData.provider);
-    const { score: _score, flags } = scoreEvent({
-      responseText,
-      isError: eventData.isError,
-      errorMessage: eventData.errorMessage,
-      agentConfig,
-    });
-
-    // Create quality flags
-    if (flags.length > 0) {
-      await prisma.qualityFlag.createMany({
-        data: flags.map((f) => ({
-          conversationId: conversation.id,
-          eventId: event.id,
-          category: f.category,
-          severity: f.severity,
-          reason: f.reason,
-          layer: f.layer,
-        })),
+        agentConfig,
       });
+
+      // Create quality flags
+      if (flags.length > 0) {
+        await tx.qualityFlag.createMany({
+          data: flags.map((f) => ({
+            conversationId: conversation.id,
+            eventId: event.id,
+            category: f.category,
+            severity: f.severity,
+            reason: f.reason,
+            layer: f.layer,
+          })),
+        });
+      }
+
+      // Update conversation aggregates
+      const allEventScores = await tx.event.findMany({
+        where: { conversationId: conversation.id },
+        select: { id: true },
+      });
+
+      const allFlags = await tx.qualityFlag.findMany({
+        where: { conversationId: conversation.id },
+        select: { severity: true, eventId: true },
+      });
+
+      const eventFlagMap = new Map<string, number>();
+      for (const flag of allFlags) {
+        const eid = flag.eventId || 'unknown';
+        const deduction = flag.severity === 'LOW' ? 5 : flag.severity === 'MEDIUM' ? 15 : flag.severity === 'HIGH' ? 30 : 50;
+        eventFlagMap.set(eid, (eventFlagMap.get(eid) || 0) + deduction);
+      }
+
+      const eventScores = allEventScores.map((e) => Math.max(0, 100 - (eventFlagMap.get(e.id) || 0)));
+      const conversationScore = calculateConversationScore(eventScores);
+
+      await tx.conversation.update({
+        where: { id: conversation.id },
+        data: {
+          eventCount: allEventScores.length,
+          totalTokens: { increment: eventData.inputTokens + eventData.outputTokens },
+          totalCostCents: { increment: costCents },
+          qualityScore: conversationScore,
+          lastEventAt: new Date(),
+        },
+      });
+
+      // Update agent-level EWMA quality score (chain within batch)
+      currentAgentScore = updateAgentScore(currentAgentScore, conversationScore);
+      latestConversationScore = conversationScore;
+      latestEventCount = allEventScores.length;
     }
 
-    // Update conversation aggregates
-    const allEventScores = await prisma.event.findMany({
-      where: { conversationId: conversation.id },
-      select: { id: true },
-    });
-
-    const allFlags = await prisma.qualityFlag.findMany({
-      where: { conversationId: conversation.id },
-      select: { severity: true, eventId: true },
-    });
-
-    const eventFlagMap = new Map<string, number>();
-    for (const flag of allFlags) {
-      const eid = flag.eventId || 'unknown';
-      const deduction = flag.severity === 'LOW' ? 5 : flag.severity === 'MEDIUM' ? 15 : flag.severity === 'HIGH' ? 30 : 50;
-      eventFlagMap.set(eid, (eventFlagMap.get(eid) || 0) + deduction);
-    }
-
-    const eventScores = allEventScores.map((e) => Math.max(0, 100 - (eventFlagMap.get(e.id) || 0)));
-    const conversationScore = calculateConversationScore(eventScores);
-
-    await prisma.conversation.update({
-      where: { id: conversation.id },
-      data: {
-        eventCount: allEventScores.length,
-        totalTokens: { increment: eventData.inputTokens + eventData.outputTokens },
-        totalCostCents: { increment: costCents },
-        qualityScore: conversationScore,
-        lastEventAt: new Date(),
-      },
-    });
-
-    // Update agent-level EWMA quality score
-    const newAgentScore = updateAgentScore(agent.qualityScore, conversationScore);
-    await prisma.agent.update({
+    // Write final agent score once at end of batch
+    await tx.agent.update({
       where: { id: agent.id },
-      data: { qualityScore: newAgentScore },
+      data: { qualityScore: currentAgentScore },
     });
+  });
 
-    // SSE broadcast
-    sseManager.broadcast(agent.id, { type: 'event', data: { qualityScore: conversationScore, eventCount: allEventScores.length } });
-  }
+  // SSE broadcast (outside transaction — fire-and-forget)
+  sseManager.broadcast(agent.id, { type: 'event', data: { qualityScore: latestConversationScore, eventCount: latestEventCount } });
 
   // Check alerts
   const alertConfigs = await prisma.alertConfig.findMany({

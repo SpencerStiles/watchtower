@@ -166,7 +166,7 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
   const p95 = Math.round(avgLatencyMs * 1.8);
   const p99 = Math.round(avgLatencyMs * 2.5);
 
-  const maskedKey = agent.apiKey.slice(0, 8) + '••••••••••••••••••••' + agent.apiKey.slice(-4);
+  const maskedKey = 'wt_••••••••••••••••••••••••••••';
 
   return (
     <div className="p-6 space-y-6">
@@ -189,7 +189,7 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
             >
               {maskedKey}
             </code>
-            <RevealKeyButton apiKey={agent.apiKey} />
+            <span className="text-xs" style={{ color: 'var(--muted)' }}>Key shown only at creation</span>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -454,21 +454,3 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
   );
 }
 
-// Client component for revealing API key
-function RevealKeyButton({ apiKey }: { apiKey: string }) {
-  // This is a server component — we use a form/details trick or a separate client component.
-  // We'll use a simple details/summary HTML element which is accessible and JS-free.
-  return (
-    <details className="inline">
-      <summary
-        className="cursor-pointer text-xs list-none"
-        style={{ color: 'var(--accent)' }}
-      >
-        Reveal
-      </summary>
-      <code className="ml-2 text-xs font-[family-name:var(--font-mono)]" style={{ color: 'var(--text)' }}>
-        {apiKey}
-      </code>
-    </details>
-  );
-}

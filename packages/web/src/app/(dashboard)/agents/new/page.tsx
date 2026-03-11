@@ -32,7 +32,7 @@ export default function NewAgentPage() {
         return;
       }
 
-      setApiKey(data.agent.apiKey);
+      setApiKey(data.apiKey);
       setAgentId(data.agent.id);
     } catch {
       setError('Network error — please try again');

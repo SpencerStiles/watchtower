@@ -136,7 +136,7 @@ model Agent {
   name           String
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
-  apiKey         String      @unique
+  apiKeyHash     String      @unique
   status         AgentStatus @default(ACTIVE)
   config         Json        @default("{}")
   qualityScore   Int?

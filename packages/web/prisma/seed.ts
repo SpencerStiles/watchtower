@@ -1,6 +1,15 @@
 import { PrismaClient } from '@prisma/client';
+import { createHash } from 'crypto';
 
 const prisma = new PrismaClient();
+
+function hashKey(key: string): string {
+  return createHash('sha256').update(key).digest('hex');
+}
+
+// Seed API keys — printed at end so developer can use them
+const SEED_KEY_ALPHA = 'wt_seed_key_alpha_000000000000000000000000000000000000000000000000';
+const SEED_KEY_BETA = 'wt_seed_key_beta_0000000000000000000000000000000000000000000000000';
 
 async function main() {
   console.log('Seeding database...');
@@ -41,10 +50,10 @@ async function main() {
       id: 'seed_agent_alpha',
       name: 'Support Bot Alpha',
       organizationId: org.id,
-      apiKey: 'wt_seed_key_alpha_000000000000000000000000000000000000000000000000',
+      apiKeyHash: hashKey(SEED_KEY_ALPHA),
       status: 'ACTIVE',
       config: {
-        blockedPhrases: ['competitor', 'lawsuit'],
+        blockedKeywords: ['competitor', 'lawsuit'],
         maxResponseLength: 2000,
       },
       qualityScore: 82,
@@ -56,10 +65,10 @@ async function main() {
       id: 'seed_agent_beta',
       name: 'Sales Bot Beta',
       organizationId: org.id,
-      apiKey: 'wt_seed_key_beta_0000000000000000000000000000000000000000000000000',
+      apiKeyHash: hashKey(SEED_KEY_BETA),
       status: 'ACTIVE',
       config: {
-        blockedPhrases: ['refund', 'cancel'],
+        blockedKeywords: ['refund', 'cancel'],
       },
       qualityScore: 74,
     },
@@ -234,8 +243,8 @@ async function main() {
   console.log('Developer login: dev@demo.com');
   console.log('Business Owner login: owner@demo.com');
   console.log('');
-  console.log('Agent Alpha API key: wt_seed_key_alpha_000000000000000000000000000000000000000000000000');
-  console.log('Agent Beta API key:  wt_seed_key_beta_0000000000000000000000000000000000000000000000000');
+  console.log('Agent Alpha API key:', SEED_KEY_ALPHA);
+  console.log('Agent Beta API key: ', SEED_KEY_BETA);
   console.log('');
   console.log('Organization:', org.name, '(id:', org.id, ')');
   console.log('Developer user id:', developer.id);
