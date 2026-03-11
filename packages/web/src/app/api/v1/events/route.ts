@@ -6,6 +6,8 @@ import { rateLimit } from '@/lib/rate-limit';
 import { calculateCostCents } from '@/lib/pricing';
 import { scoreEvent, calculateConversationScore, updateAgentScore, extractResponseText } from '@/lib/scoring';
 import { logger } from '@/lib/logger';
+import { checkAlerts } from '@/lib/alert-check';
+import { sseManager } from '@/lib/sse';
 
 const eventSchema = z.object({
   sessionId: z.string().min(1),
@@ -162,7 +164,41 @@ export async function POST(req: NextRequest) {
       data: { qualityScore: newAgentScore },
     });
 
-    // TODO: SSE broadcast added in Task 26 — see Task 26 Step 3
+    // SSE broadcast
+    sseManager.broadcast(agent.id, { type: 'event', data: { qualityScore: conversationScore, eventCount: allEventScores.length } });
+  }
+
+  // Check alerts
+  const alertConfigs = await prisma.alertConfig.findMany({
+    where: { agentId: agent.id, enabled: true },
+    include: { user: { select: { email: true } } },
+  });
+
+  if (alertConfigs.length > 0) {
+    const recentEvents = await prisma.event.findMany({
+      where: { agentId: agent.id, createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+      select: { isError: true },
+    });
+
+    const errorRate = recentEvents.length > 0
+      ? recentEvents.filter(e => e.isError).length / recentEvents.length
+      : 0;
+
+    const totalCostToday = await prisma.event.aggregate({
+      where: { agentId: agent.id, createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+      _sum: { costCents: true },
+    });
+
+    const latestAgent = await prisma.agent.findUnique({ where: { id: agent.id } });
+
+    await checkAlerts(
+      alertConfigs as any,
+      {
+        qualityScore: latestAgent?.qualityScore ?? null,
+        errorRate,
+        totalCostCents: totalCostToday._sum.costCents ?? 0,
+      }
+    );
   }
 
   logger.info('Events ingested', { agentId: agent.id, count: parsed.data.length });
