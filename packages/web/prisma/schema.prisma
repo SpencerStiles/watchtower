@@ -1,0 +1,253 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Auth (NextAuth) ---
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// --- Core Models ---
+
+enum Role {
+  DEVELOPER
+  BUSINESS_OWNER
+}
+
+enum AgentStatus {
+  ACTIVE
+  PAUSED
+  ERROR
+}
+
+enum BillingTier {
+  STARTER
+  PRO
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+}
+
+enum Provider {
+  ANTHROPIC
+  OPENAI
+}
+
+enum FlagCategory {
+  HALLUCINATION
+  OFF_BRAND
+  POLICY_VIOLATION
+  TOOL_FAILURE
+  SENTIMENT_NEGATIVE
+  ANOMALY
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum FlagResolution {
+  ACCEPTABLE
+  NEEDS_FIX
+}
+
+enum AlertType {
+  QUALITY_DROP
+  ERROR_SPIKE
+  BUDGET_EXCEEDED
+  FLAG_TYPE
+}
+
+enum AlertChannel {
+  EMAIL
+}
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  name           String?
+  image          String?
+  emailVerified  DateTime?
+  role           Role      @default(DEVELOPER)
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  accounts       Account[]
+  sessions       Session[]
+  dashboards     BusinessDashboard[]
+  invitationsSent Invitation[] @relation("InvitedBy")
+  resolvedFlags  QualityFlag[] @relation("ResolvedBy")
+  alertConfigs   AlertConfig[]
+  createdAt      DateTime  @default(now())
+}
+
+model Organization {
+  id               String   @id @default(cuid())
+  name             String
+  stripeCustomerId String?
+  users            User[]
+  agents           Agent[]
+  createdAt        DateTime @default(now())
+}
+
+model Agent {
+  id             String      @id @default(cuid())
+  name           String
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  apiKey         String      @unique
+  status         AgentStatus @default(ACTIVE)
+  config         Json        @default("{}")
+  qualityScore   Int?
+  dashboards     BusinessDashboard[]
+  conversations  Conversation[]
+  events         Event[]
+  invitations    Invitation[]
+  alertConfigs   AlertConfig[]
+  createdAt      DateTime    @default(now())
+
+  @@index([organizationId])
+}
+
+model BusinessDashboard {
+  id          String      @id @default(cuid())
+  agentId     String
+  agent       Agent       @relation(fields: [agentId], references: [id])
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
+  billingTier BillingTier @default(STARTER)
+  stripeSubId String?
+  createdAt   DateTime    @default(now())
+
+  @@unique([agentId, userId])
+}
+
+model Invitation {
+  id        String           @id @default(cuid())
+  email     String
+  agentId   String
+  agent     Agent            @relation(fields: [agentId], references: [id])
+  invitedBy String
+  inviter   User             @relation("InvitedBy", fields: [invitedBy], references: [id])
+  status    InvitationStatus @default(PENDING)
+  token     String           @unique @default(cuid())
+  createdAt DateTime         @default(now())
+
+  @@index([email])
+}
+
+model Conversation {
+  id             String        @id @default(cuid())
+  agentId        String
+  agent          Agent         @relation(fields: [agentId], references: [id])
+  sessionId      String
+  qualityScore   Int?
+  eventCount     Int           @default(0)
+  totalTokens    Int           @default(0)
+  totalCostCents Int           @default(0)
+  startedAt      DateTime      @default(now())
+  lastEventAt    DateTime      @default(now())
+  events         Event[]
+  flags          QualityFlag[]
+
+  @@unique([sessionId, agentId])
+  @@index([agentId, lastEventAt])
+}
+
+model Event {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  agentId        String
+  agent          Agent        @relation(fields: [agentId], references: [id])
+  provider       Provider
+  model          String
+  inputTokens    Int
+  outputTokens   Int
+  costCents      Int
+  latencyMs      Int
+  requestBody    Json
+  responseBody   Json
+  isError        Boolean      @default(false)
+  errorMessage   String?
+  createdAt      DateTime     @default(now())
+  flags          QualityFlag[]
+
+  @@index([conversationId])
+  @@index([agentId, createdAt])
+}
+
+model QualityFlag {
+  id             String          @id @default(cuid())
+  conversationId String
+  conversation   Conversation    @relation(fields: [conversationId], references: [id])
+  eventId        String?
+  event          Event?          @relation(fields: [eventId], references: [id])
+  category       FlagCategory
+  severity       Severity
+  reason         String
+  layer          Int
+  resolution     FlagResolution?
+  resolvedById   String?
+  resolvedBy     User?           @relation("ResolvedBy", fields: [resolvedById], references: [id])
+  createdAt      DateTime        @default(now())
+
+  @@index([conversationId])
+  @@index([category, severity])
+}
+
+model AlertConfig {
+  id        String    @id @default(cuid())
+  agentId   String
+  agent     Agent     @relation(fields: [agentId], references: [id])
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  type      AlertType
+  threshold Json
+  channel   AlertChannel @default(EMAIL)
+  enabled   Boolean   @default(true)
+  createdAt DateTime  @default(now())
+
+  @@index([agentId])
+}
