@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { motion, fadeUpVariants, staggerContainer } from '@/components/motion';
 
 interface Alert {
   id: string;
@@ -108,48 +109,39 @@ export function AlertsClient({ agentId, initialAlerts }: Props) {
     <div className="space-y-8">
       {/* Existing Alerts */}
       <section className="space-y-4">
-        <h2
-          className="text-sm font-semibold uppercase tracking-wider"
-          style={{ color: 'var(--muted)' }}
-        >
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">
           Active Alerts ({alerts.length})
         </h2>
         {alerts.length === 0 ? (
-          <div
-            className="rounded-lg border p-8 text-center"
-            style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}
-          >
-            <p className="text-sm" style={{ color: 'var(--muted)' }}>
+          <div className="rounded-lg border border-border bg-surface p-8 text-center">
+            <p className="text-sm text-muted">
               No alerts configured. Create one below.
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <motion.div
+            variants={staggerContainer}
+            initial="hidden"
+            animate="visible"
+            className="space-y-2"
+          >
             {alerts.map((alert) => (
-              <div
+              <motion.div
                 key={alert.id}
-                className="flex items-center justify-between rounded-lg border px-4 py-3"
-                style={{
-                  backgroundColor: 'var(--surface)',
-                  borderColor: 'var(--border)',
-                }}
+                variants={fadeUpVariants}
+                transition={{ duration: 0.3, ease: [0, 0, 0.2, 1] }}
+                className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-3"
               >
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+                    <span className="text-sm font-medium text-text">
                       {ALERT_TYPES.find((t) => t.value === alert.type)?.label ?? alert.type}
                     </span>
-                    <span
-                      className="rounded px-1.5 py-0.5 text-xs"
-                      style={{
-                        backgroundColor: 'rgba(113,113,122,0.15)',
-                        color: 'var(--muted)',
-                      }}
-                    >
+                    <span className="rounded px-1.5 py-0.5 text-xs bg-[rgba(113,113,122,0.15)] text-muted">
                       {alert.channel}
                     </span>
                   </div>
-                  <p className="text-xs font-[family-name:var(--font-mono)]" style={{ color: 'var(--muted)' }}>
+                  <p className="text-xs font-mono text-muted">
                     threshold: {JSON.stringify(alert.threshold)}
                   </p>
                 </div>
@@ -157,7 +149,7 @@ export function AlertsClient({ agentId, initialAlerts }: Props) {
                 {/* Toggle */}
                 <button
                   onClick={() => toggleAlert(alert.id, alert.enabled)}
-                  className="relative w-10 h-5 rounded-full transition-colors"
+                  className="relative w-10 h-5 rounded-full transition-colors active:scale-[0.97] transition-all"
                   style={{
                     backgroundColor: alert.enabled ? 'var(--success)' : 'var(--border)',
                   }}
@@ -167,35 +159,27 @@ export function AlertsClient({ agentId, initialAlerts }: Props) {
                     className="absolute top-0.5 w-4 h-4 rounded-full transition-transform"
                     style={{
                       backgroundColor: '#fff',
-                      left: alert.enabled ? '22px' : '2px',
+                      left: '2px',
+                      transform: alert.enabled ? 'translateX(20px)' : 'translateX(0)',
                     }}
                   />
                 </button>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
       </section>
 
       {/* New Alert Form */}
       <section className="space-y-4">
-        <h2
-          className="text-sm font-semibold uppercase tracking-wider"
-          style={{ color: 'var(--muted)' }}
-        >
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">
           New Alert
         </h2>
-        <div
-          className="rounded-lg border p-6"
-          style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}
-        >
+        <div className="rounded-lg border border-border bg-surface p-6">
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label
-                  className="block text-sm font-medium mb-1.5"
-                  style={{ color: 'var(--text)' }}
-                >
+                <label className="block text-sm font-medium mb-1.5 text-text">
                   Alert Type
                 </label>
                 <select
@@ -204,12 +188,7 @@ export function AlertsClient({ agentId, initialAlerts }: Props) {
                     setAlertType(e.target.value);
                     setThresholdValue('');
                   }}
-                  className="w-full rounded-md border px-3 py-2 text-sm outline-none"
-                  style={{
-                    backgroundColor: 'var(--elevated)',
-                    borderColor: 'var(--border)',
-                    color: 'var(--text)',
-                  }}
+                  className="w-full rounded-md border border-border bg-elevated px-3 py-2 text-sm text-text"
                 >
                   {ALERT_TYPES.map(({ value, label }) => (
                     <option key={value} value={value}>
@@ -220,10 +199,7 @@ export function AlertsClient({ agentId, initialAlerts }: Props) {
               </div>
 
               <div>
-                <label
-                  className="block text-sm font-medium mb-1.5"
-                  style={{ color: 'var(--text)' }}
-                >
+                <label className="block text-sm font-medium mb-1.5 text-text">
                   {thresholdInfo?.label ?? 'Threshold'}
                 </label>
                 <input
@@ -232,43 +208,27 @@ export function AlertsClient({ agentId, initialAlerts }: Props) {
                   onChange={(e) => setThresholdValue(e.target.value)}
                   placeholder={thresholdInfo?.placeholder ?? ''}
                   required
-                  className="w-full rounded-md border px-3 py-2 text-sm outline-none"
-                  style={{
-                    backgroundColor: 'var(--elevated)',
-                    borderColor: 'var(--border)',
-                    color: 'var(--text)',
-                  }}
+                  className="w-full rounded-md border border-border bg-elevated px-3 py-2 text-sm text-text"
                 />
               </div>
 
               <div>
-                <label
-                  className="block text-sm font-medium mb-1.5"
-                  style={{ color: 'var(--text)' }}
-                >
+                <label className="block text-sm font-medium mb-1.5 text-text">
                   Channel
                 </label>
-                <div
-                  className="rounded-md border px-3 py-2 text-sm"
-                  style={{
-                    backgroundColor: 'var(--elevated)',
-                    borderColor: 'var(--border)',
-                    color: 'var(--muted)',
-                  }}
-                >
+                <div className="rounded-md border border-border bg-elevated px-3 py-2 text-sm text-muted">
                   EMAIL
                 </div>
               </div>
             </div>
 
-            {error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{error}</p>}
-            {success && <p className="text-sm" style={{ color: 'var(--success)' }}>{success}</p>}
+            {error && <p className="text-sm text-danger">{error}</p>}
+            {success && <p className="text-sm text-success">{success}</p>}
 
             <button
               type="submit"
               disabled={loading || !thresholdValue.trim()}
-              className="rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
-              style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+              className="rounded-md px-4 py-2 text-sm font-medium bg-accent text-white transition-all active:scale-[0.97] disabled:opacity-50"
             >
               {loading ? 'Creating…' : 'Create Alert'}
             </button>
