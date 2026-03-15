@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { validateApiKey } from '@/lib/api-key';
 import { rateLimit } from '@/lib/rate-limit';
@@ -100,8 +101,8 @@ export async function POST(req: NextRequest) {
           outputTokens: eventData.outputTokens,
           costCents,
           latencyMs: eventData.latencyMs,
-          requestBody: eventData.requestBody as Record<string, unknown>,
-          responseBody: eventData.responseBody as Record<string, unknown>,
+          requestBody: eventData.requestBody as Prisma.InputJsonValue,
+          responseBody: eventData.responseBody as Prisma.InputJsonValue,
           isError: eventData.isError,
           errorMessage: eventData.errorMessage,
         },

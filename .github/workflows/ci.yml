@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  sdk:
+    name: SDK — Tests & Types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Type check
+        run: npx tsc --noEmit
+        working-directory: packages/sdk
+      - name: Tests
+        run: npm test
+        working-directory: packages/sdk
+
+  web:
+    name: Web — Types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Generate Prisma client
+        run: npx prisma generate
+        working-directory: packages/web
+      - name: Type check
+        run: npx tsc --noEmit
+        working-directory: packages/web
