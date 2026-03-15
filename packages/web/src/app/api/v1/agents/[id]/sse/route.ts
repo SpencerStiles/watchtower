@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/db';
 import { authOptions } from '@/lib/auth';
 import { sseManager } from '@/lib/sse';
+import { logger } from '@/lib/logger';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -13,7 +14,17 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const agentId = params.id;
 
   // Check access
-  const agent = await prisma.agent.findUnique({ where: { id: agentId } });
+  let agent: Awaited<ReturnType<typeof prisma.agent.findUnique>>;
+  try {
+    agent = await prisma.agent.findUnique({ where: { id: agentId } });
+  } catch (err) {
+    logger.error('GET /api/v1/agents/[id]/sse failed', {
+      error: err instanceof Error ? err.message : String(err),
+      agentId,
+    });
+    return new Response('Internal server error', { status: 500 });
+  }
+
   if (!agent) {
     return new Response('Not found', { status: 404 });
   }

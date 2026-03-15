@@ -90,7 +90,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       avgQualityScore: qualityAgg._avg.qualityScore ?? null,
     });
   } catch (err) {
-    logger.error('GET /api/v1/agents/[id]/metrics failed', { error: String(err), agentId: params.id });
+    logger.error('GET /api/v1/agents/[id]/metrics failed', { error: err instanceof Error ? err.message : String(err), agentId: params.id });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
