@@ -3,7 +3,7 @@ import { signIn } from 'next-auth/react';
 
 export default function LoginPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center">
+    <main className="flex min-h-screen items-center justify-center py-16">
       <div className="w-full max-w-sm space-y-6 rounded-lg border border-[#2d2d35] bg-[#111114] p-8">
         <div className="text-center">
           <h1 className="text-2xl font-bold font-[family-name:var(--font-syne)]">WatchTower</h1>
