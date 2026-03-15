@@ -6,10 +6,14 @@ export interface WatchTowerConfig {
   batchSize?: number;
   flushIntervalMs?: number;
   maxBufferSize?: number;
+  onError?: (error: Error) => void;
+  onDrop?: (droppedCount: number) => void;
 }
 
 export interface EventPayload {
+  eventId: string;
   sessionId: string;
+  agentId: string;
   provider: 'anthropic' | 'openai';
   model: string;
   inputTokens: number;

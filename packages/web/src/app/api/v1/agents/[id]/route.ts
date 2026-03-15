@@ -52,7 +52,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
     return NextResponse.json({ agent });
   } catch (err) {
-    logger.error('GET /api/v1/agents/[id] failed', { error: String(err), agentId: params.id });
+    logger.error('GET /api/v1/agents/[id] failed', { error: err instanceof Error ? err.message : String(err), agentId: params.id });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -106,7 +106,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     logger.info('Agent updated', { agentId: params.id, userId: session.user.id });
     return NextResponse.json({ agent: updated });
   } catch (err) {
-    logger.error('PATCH /api/v1/agents/[id] failed', { error: String(err), agentId: params.id });
+    logger.error('PATCH /api/v1/agents/[id] failed', { error: err instanceof Error ? err.message : String(err), agentId: params.id });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

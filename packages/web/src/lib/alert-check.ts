@@ -16,20 +16,32 @@ interface AlertMetrics {
 
 type SendFn = (to: string, subject: string, html: string) => Promise<void>;
 
+const ONE_HOUR = 60 * 60 * 1000;
+
 // In-memory deduplication: alertConfigId -> last sent timestamp
 const lastAlertSent = new Map<string, number>();
+
+function purgeStaleAlertEntries(): void {
+  const cutoff = Date.now() - ONE_HOUR;
+  for (const [key, timestamp] of lastAlertSent) {
+    if (timestamp < cutoff) {
+      lastAlertSent.delete(key);
+    }
+  }
+}
 
 export function _resetAlertTimestamps() {
   lastAlertSent.clear();
 }
-
-const ONE_HOUR = 60 * 60 * 1000;
 
 export async function checkAlerts(
   alerts: AlertConfig[],
   metrics: AlertMetrics,
   send?: SendFn
 ): Promise<void> {
+  // Clean up stale dedup entries to prevent unbounded memory growth
+  purgeStaleAlertEntries();
+
   const sendFn: SendFn = send ?? (async (to, subject, html) => {
     const { sendEmail } = await import('./email');
     return sendEmail(to, subject, html);

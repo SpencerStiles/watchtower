@@ -1,9 +1,9 @@
 import { WatchTower } from './packages/sdk/src';
 
 const wt = new WatchTower({
-  apiKey: 'wt_seed_key_alpha_000000000000000000000000000000000000000000000000',
-  agentId: 'seed_agent_alpha',
-  endpoint: 'http://localhost:3000/api/v1',
+  apiKey: process.env.WT_API_KEY ?? 'wt_seed_key_alpha_000000000000000000000000000000000000000000000000',
+  agentId: process.env.WT_AGENT_ID ?? 'seed_agent_alpha',
+  endpoint: process.env.WT_ENDPOINT ?? 'http://localhost:3000/api/v1',
 });
 
 const mockClient = {

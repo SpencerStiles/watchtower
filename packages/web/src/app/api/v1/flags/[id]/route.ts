@@ -76,7 +76,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     logger.info('Flag resolved', { flagId: params.id, userId: session.user.id, resolution: parsed.data.resolution });
     return NextResponse.json({ flag: updated });
   } catch (err) {
-    logger.error('PATCH /api/v1/flags/[id] failed', { error: String(err), flagId: params.id });
+    logger.error('PATCH /api/v1/flags/[id] failed', { error: err instanceof Error ? err.message : String(err), flagId: params.id });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

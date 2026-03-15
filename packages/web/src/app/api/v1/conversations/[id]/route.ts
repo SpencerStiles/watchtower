@@ -47,7 +47,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ conversation });
   } catch (err) {
     logger.error('GET /api/v1/conversations/[id] failed', {
-      error: String(err),
+      error: err instanceof Error ? err.message : String(err),
       conversationId: params.id,
     });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

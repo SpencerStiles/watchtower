@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ invitation }, { status: 201 });
   } catch (err) {
-    logger.error('POST /api/v1/invitations failed', { error: String(err) });
+    logger.error('POST /api/v1/invitations failed', { error: err instanceof Error ? err.message : String(err) });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

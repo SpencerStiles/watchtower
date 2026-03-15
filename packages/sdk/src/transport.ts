@@ -2,6 +2,7 @@ import type { EventPayload } from './types';
 
 interface TransportOptions {
   maxBufferSize?: number;
+  onDrop?: (droppedCount: number) => void;
 }
 
 export class Transport {
@@ -9,11 +10,13 @@ export class Transport {
   private endpoint: string;
   private buffer: EventPayload[] = [];
   private maxBufferSize: number;
+  private onDrop?: (droppedCount: number) => void;
 
   constructor(apiKey: string, endpoint: string, options?: TransportOptions) {
     this.apiKey = apiKey;
     this.endpoint = endpoint;
     this.maxBufferSize = options?.maxBufferSize ?? 1000;
+    this.onDrop = options?.onDrop;
   }
 
   get bufferedCount(): number {
@@ -43,9 +46,20 @@ export class Transport {
   }
 
   private addToBuffer(events: EventPayload[]): void {
+    let droppedCount = 0;
     for (const event of events) {
-      if (this.buffer.length >= this.maxBufferSize) break;
-      this.buffer.push(event);
+      if (this.buffer.length >= this.maxBufferSize) {
+        droppedCount++;
+      } else {
+        this.buffer.push(event);
+      }
+    }
+    if (droppedCount > 0) {
+      if (this.onDrop) {
+        this.onDrop(droppedCount);
+      } else {
+        console.warn(`[WatchTower] ${droppedCount} event(s) dropped — buffer full (max: ${this.maxBufferSize})`);
+      }
     }
   }
 }

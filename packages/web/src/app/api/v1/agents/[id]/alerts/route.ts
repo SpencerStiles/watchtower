@@ -52,7 +52,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
     return NextResponse.json({ alerts });
   } catch (err) {
-    logger.error('GET /api/v1/agents/[id]/alerts failed', { error: String(err), agentId: params.id });
+    logger.error('GET /api/v1/agents/[id]/alerts failed', { error: err instanceof Error ? err.message : String(err), agentId: params.id });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     logger.info('Alert config created', { alertId: alert.id, agentId: params.id, userId: session.user.id });
     return NextResponse.json({ alert }, { status: 201 });
   } catch (err) {
-    logger.error('POST /api/v1/agents/[id]/alerts failed', { error: String(err), agentId: params.id });
+    logger.error('POST /api/v1/agents/[id]/alerts failed', { error: err instanceof Error ? err.message : String(err), agentId: params.id });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
