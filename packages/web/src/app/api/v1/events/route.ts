@@ -10,7 +10,24 @@ import { logger } from '@/lib/logger';
 import { checkAlerts } from '@/lib/alert-check';
 import { sseManager } from '@/lib/sse';
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
+}
+
+function truncateJson(value: unknown, maxBytes: number): unknown {
+  const str = JSON.stringify(value);
+  if (str.length <= maxBytes) return value;
+  return { _truncated: true, _originalSize: str.length, preview: str.slice(0, maxBytes) };
+}
+
 const eventSchema = z.object({
+  eventId: z.string().uuid(),
   sessionId: z.string().min(1),
   provider: z.enum(['anthropic', 'openai']),
   model: z.string().min(1),
@@ -27,21 +44,41 @@ const eventSchema = z.object({
 const batchSchema = z.array(eventSchema).min(1).max(100);
 
 export async function POST(req: NextRequest) {
+  const requestId = crypto.randomUUID();
+
   // Auth via API key
   const authHeader = req.headers.get('authorization');
   const apiKey = authHeader?.replace('Bearer ', '');
   if (!apiKey) {
-    return NextResponse.json({ error: 'Missing API key', code: 'UNAUTHORIZED' }, { status: 401 });
+    return NextResponse.json(
+      { error: 'Missing API key', code: 'UNAUTHORIZED', requestId },
+      { status: 401, headers: CORS_HEADERS }
+    );
   }
 
   const agent = await validateApiKey(apiKey);
   if (!agent) {
-    return NextResponse.json({ error: 'Invalid API key', code: 'UNAUTHORIZED' }, { status: 401 });
+    return NextResponse.json(
+      { error: 'Invalid API key', code: 'UNAUTHORIZED', requestId },
+      { status: 401, headers: CORS_HEADERS }
+    );
+  }
+
+  // Payload size check
+  const contentLength = req.headers.get('content-length');
+  if (contentLength && parseInt(contentLength) > 1_048_576) {
+    return NextResponse.json(
+      { error: 'Payload too large. Maximum request size is 1MB.', requestId },
+      { status: 413, headers: CORS_HEADERS }
+    );
   }
 
   // Rate limit
   if (!rateLimit(agent.id, 1000, 1000)) {
-    return NextResponse.json({ error: 'Rate limit exceeded', code: 'RATE_LIMITED' }, { status: 429 });
+    return NextResponse.json(
+      { error: 'Rate limit exceeded', code: 'RATE_LIMITED', requestId },
+      { status: 429, headers: CORS_HEADERS }
+    );
   }
 
   // Parse body — accept single event or array
@@ -49,15 +86,18 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON', code: 'VALIDATION_ERROR' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Invalid JSON', code: 'VALIDATION_ERROR', requestId },
+      { status: 400, headers: CORS_HEADERS }
+    );
   }
 
   const events = Array.isArray(body) ? body : [body];
   const parsed = batchSchema.safeParse(events);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: 'Validation error', code: 'VALIDATION_ERROR', details: parsed.error.issues },
-      { status: 400 }
+      { error: 'Validation error', code: 'VALIDATION_ERROR', details: parsed.error.issues, requestId },
+      { status: 400, headers: CORS_HEADERS }
     );
   }
 
@@ -66,153 +106,188 @@ export async function POST(req: NextRequest) {
   let latestConversationScore = 0;
   let latestEventCount = 0;
 
-  await prisma.$transaction(async (tx) => {
-    let currentAgentScore = agent.qualityScore;
+  let results: { eventId: string; status: string }[] = [];
 
-    for (const eventData of parsed.data) {
-      const costCents = calculateCostCents(eventData.model, eventData.inputTokens, eventData.outputTokens);
+  try {
+    results = await prisma.$transaction(async (tx) => {
+      let currentAgentScore = agent.qualityScore;
+      const processed: { eventId: string; status: string }[] = [];
 
-      // Find or create conversation
-      const conversation = await tx.conversation.upsert({
-        where: {
-          sessionId_agentId: {
-            sessionId: eventData.sessionId,
-            agentId: agent.id,
-          },
-        },
-        create: {
-          agentId: agent.id,
-          sessionId: eventData.sessionId,
-          eventCount: 0,
-          totalTokens: 0,
-          totalCostCents: 0,
-        },
-        update: {},
-      });
+      for (const eventData of parsed.data) {
+        try {
+          const costCents = calculateCostCents(eventData.model, eventData.inputTokens, eventData.outputTokens);
 
-      // Create event
-      const event = await tx.event.create({
-        data: {
-          conversationId: conversation.id,
-          agentId: agent.id,
-          provider: eventData.provider === 'anthropic' ? 'ANTHROPIC' : 'OPENAI',
-          model: eventData.model,
-          inputTokens: eventData.inputTokens,
-          outputTokens: eventData.outputTokens,
-          costCents,
-          latencyMs: eventData.latencyMs,
-          requestBody: eventData.requestBody as Prisma.InputJsonValue,
-          responseBody: eventData.responseBody as Prisma.InputJsonValue,
-          isError: eventData.isError,
-          errorMessage: eventData.errorMessage,
-        },
-      });
+          // Find or create conversation
+          const conversation = await tx.conversation.upsert({
+            where: {
+              sessionId_agentId: {
+                sessionId: eventData.sessionId,
+                agentId: agent.id,
+              },
+            },
+            create: {
+              agentId: agent.id,
+              sessionId: eventData.sessionId,
+              eventCount: 0,
+              totalTokens: 0,
+              totalCostCents: 0,
+            },
+            update: {},
+          });
 
-      // Quality scoring
-      const responseText = extractResponseText(eventData.responseBody, eventData.provider);
-      const { flags } = scoreEvent({
-        responseText,
-        isError: eventData.isError,
-        errorMessage: eventData.errorMessage,
-        agentConfig,
-      });
+          // Upsert event using externalId for idempotency
+          const event = await tx.event.upsert({
+            where: { externalId: eventData.eventId },
+            update: {},
+            create: {
+              externalId: eventData.eventId,
+              conversationId: conversation.id,
+              agentId: agent.id,
+              provider: eventData.provider === 'anthropic' ? 'ANTHROPIC' : 'OPENAI',
+              model: eventData.model,
+              inputTokens: eventData.inputTokens,
+              outputTokens: eventData.outputTokens,
+              costCents,
+              latencyMs: eventData.latencyMs,
+              requestBody: truncateJson(eventData.requestBody, 100_000) as Prisma.InputJsonValue,
+              responseBody: truncateJson(eventData.responseBody, 100_000) as Prisma.InputJsonValue,
+              isError: eventData.isError,
+              errorMessage: eventData.errorMessage,
+            },
+          });
 
-      // Create quality flags
-      if (flags.length > 0) {
-        await tx.qualityFlag.createMany({
-          data: flags.map((f) => ({
-            conversationId: conversation.id,
-            eventId: event.id,
-            category: f.category,
-            severity: f.severity,
-            reason: f.reason,
-            layer: f.layer,
-          })),
-        });
+          // Quality scoring
+          const responseText = extractResponseText(eventData.responseBody, eventData.provider);
+          const { flags } = scoreEvent({
+            responseText,
+            isError: eventData.isError,
+            errorMessage: eventData.errorMessage,
+            agentConfig,
+          });
+
+          // Create quality flags
+          if (flags.length > 0) {
+            await tx.qualityFlag.createMany({
+              data: flags.map((f) => ({
+                conversationId: conversation.id,
+                agentId: agent.id,
+                eventId: event.id,
+                category: f.category,
+                severity: f.severity,
+                reason: f.reason,
+                layer: f.layer,
+              })),
+            });
+          }
+
+          // Update conversation aggregates
+          const allEventScores = await tx.event.findMany({
+            where: { conversationId: conversation.id },
+            select: { id: true },
+          });
+
+          const allFlags = await tx.qualityFlag.findMany({
+            where: { conversationId: conversation.id },
+            select: { severity: true, eventId: true },
+          });
+
+          const eventFlagMap = new Map<string, number>();
+          for (const flag of allFlags) {
+            const eid = flag.eventId || 'unknown';
+            const deduction = flag.severity === 'LOW' ? 5 : flag.severity === 'MEDIUM' ? 15 : flag.severity === 'HIGH' ? 30 : 50;
+            eventFlagMap.set(eid, (eventFlagMap.get(eid) || 0) + deduction);
+          }
+
+          const eventScores = allEventScores.map((e) => Math.max(0, 100 - (eventFlagMap.get(e.id) || 0)));
+          const conversationScore = calculateConversationScore(eventScores);
+
+          await tx.conversation.update({
+            where: { id: conversation.id },
+            data: {
+              eventCount: allEventScores.length,
+              totalTokens: { increment: eventData.inputTokens + eventData.outputTokens },
+              totalCostCents: { increment: costCents },
+              qualityScore: conversationScore,
+              lastEventAt: new Date(),
+            },
+          });
+
+          // Update agent-level EWMA quality score (chain within batch)
+          currentAgentScore = updateAgentScore(currentAgentScore, conversationScore);
+          latestConversationScore = conversationScore;
+          latestEventCount = allEventScores.length;
+
+          processed.push({ eventId: eventData.eventId, status: 'ok' });
+        } catch (err) {
+          logger.error('Failed to process event', {
+            requestId,
+            eventId: eventData.eventId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          processed.push({ eventId: eventData.eventId, status: 'error' });
+        }
       }
 
-      // Update conversation aggregates
-      const allEventScores = await tx.event.findMany({
-        where: { conversationId: conversation.id },
-        select: { id: true },
+      // Write final agent score once at end of batch
+      await tx.agent.update({
+        where: { id: agent.id },
+        data: { qualityScore: currentAgentScore },
       });
 
-      const allFlags = await tx.qualityFlag.findMany({
-        where: { conversationId: conversation.id },
-        select: { severity: true, eventId: true },
+      return processed;
+    });
+
+    // SSE broadcast (outside transaction — fire-and-forget)
+    sseManager.broadcast(agent.id, { type: 'event', data: { qualityScore: latestConversationScore, eventCount: latestEventCount } });
+
+    // Check alerts
+    const alertConfigs = await prisma.alertConfig.findMany({
+      where: { agentId: agent.id, enabled: true },
+      include: { user: { select: { email: true } } },
+    });
+
+    if (alertConfigs.length > 0) {
+      const recentEvents = await prisma.event.findMany({
+        where: { agentId: agent.id, createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+        select: { isError: true },
       });
 
-      const eventFlagMap = new Map<string, number>();
-      for (const flag of allFlags) {
-        const eid = flag.eventId || 'unknown';
-        const deduction = flag.severity === 'LOW' ? 5 : flag.severity === 'MEDIUM' ? 15 : flag.severity === 'HIGH' ? 30 : 50;
-        eventFlagMap.set(eid, (eventFlagMap.get(eid) || 0) + deduction);
-      }
+      const errorRate = recentEvents.length > 0
+        ? recentEvents.filter(e => e.isError).length / recentEvents.length
+        : 0;
 
-      const eventScores = allEventScores.map((e) => Math.max(0, 100 - (eventFlagMap.get(e.id) || 0)));
-      const conversationScore = calculateConversationScore(eventScores);
-
-      await tx.conversation.update({
-        where: { id: conversation.id },
-        data: {
-          eventCount: allEventScores.length,
-          totalTokens: { increment: eventData.inputTokens + eventData.outputTokens },
-          totalCostCents: { increment: costCents },
-          qualityScore: conversationScore,
-          lastEventAt: new Date(),
-        },
+      const totalCostToday = await prisma.event.aggregate({
+        where: { agentId: agent.id, createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+        _sum: { costCents: true },
       });
 
-      // Update agent-level EWMA quality score (chain within batch)
-      currentAgentScore = updateAgentScore(currentAgentScore, conversationScore);
-      latestConversationScore = conversationScore;
-      latestEventCount = allEventScores.length;
+      const latestAgent = await prisma.agent.findUnique({ where: { id: agent.id } });
+
+      await checkAlerts(
+        alertConfigs as any,
+        {
+          qualityScore: latestAgent?.qualityScore ?? null,
+          errorRate,
+          totalCostCents: totalCostToday._sum.costCents ?? 0,
+        }
+      );
     }
 
-    // Write final agent score once at end of batch
-    await tx.agent.update({
-      where: { id: agent.id },
-      data: { qualityScore: currentAgentScore },
+    logger.info('Events ingested', { requestId, agentId: agent.id, count: parsed.data.length });
+
+    return NextResponse.json(
+      { received: parsed.data.length, results, requestId },
+      { status: 202, headers: { ...CORS_HEADERS, 'X-Request-Id': requestId } }
+    );
+  } catch (error) {
+    logger.error('POST /api/v1/events failed', {
+      requestId,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
     });
-  });
-
-  // SSE broadcast (outside transaction — fire-and-forget)
-  sseManager.broadcast(agent.id, { type: 'event', data: { qualityScore: latestConversationScore, eventCount: latestEventCount } });
-
-  // Check alerts
-  const alertConfigs = await prisma.alertConfig.findMany({
-    where: { agentId: agent.id, enabled: true },
-    include: { user: { select: { email: true } } },
-  });
-
-  if (alertConfigs.length > 0) {
-    const recentEvents = await prisma.event.findMany({
-      where: { agentId: agent.id, createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
-      select: { isError: true },
-    });
-
-    const errorRate = recentEvents.length > 0
-      ? recentEvents.filter(e => e.isError).length / recentEvents.length
-      : 0;
-
-    const totalCostToday = await prisma.event.aggregate({
-      where: { agentId: agent.id, createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
-      _sum: { costCents: true },
-    });
-
-    const latestAgent = await prisma.agent.findUnique({ where: { id: agent.id } });
-
-    await checkAlerts(
-      alertConfigs as any,
-      {
-        qualityScore: latestAgent?.qualityScore ?? null,
-        errorRate,
-        totalCostCents: totalCostToday._sum.costCents ?? 0,
-      }
+    return NextResponse.json(
+      { error: 'Internal error', requestId },
+      { status: 500, headers: { ...CORS_HEADERS, 'X-Request-Id': requestId } }
     );
   }
-
-  logger.info('Events ingested', { agentId: agent.id, count: parsed.data.length });
-
-  return NextResponse.json({ received: parsed.data.length }, { status: 202 });
 }

@@ -36,7 +36,7 @@ export async function GET() {
     const agents = dashboards.map((d) => d.agent);
     return NextResponse.json({ agents });
   } catch (err) {
-    logger.error('GET /api/v1/agents failed', { error: String(err) });
+    logger.error('GET /api/v1/agents failed', { error: err instanceof Error ? err.message : String(err) });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     // Return the raw key only on creation — it cannot be retrieved later
     return NextResponse.json({ agent: { ...agent, apiKey }, apiKey }, { status: 201 });
   } catch (err) {
-    logger.error('POST /api/v1/agents failed', { error: String(err) });
+    logger.error('POST /api/v1/agents failed', { error: err instanceof Error ? err.message : String(err) });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

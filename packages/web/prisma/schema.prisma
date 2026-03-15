@@ -140,9 +140,11 @@ model Agent {
   status         AgentStatus @default(ACTIVE)
   config         Json        @default("{}")
   qualityScore   Int?
+  retainPayloads Boolean     @default(true)
   dashboards     BusinessDashboard[]
   conversations  Conversation[]
   events         Event[]
+  flags          QualityFlag[]
   invitations    Invitation[]
   alertConfigs   AlertConfig[]
   createdAt      DateTime    @default(now())
@@ -171,6 +173,7 @@ model Invitation {
   invitedBy String
   inviter   User             @relation("InvitedBy", fields: [invitedBy], references: [id])
   status    InvitationStatus @default(PENDING)
+  expiresAt DateTime         @default(dbgenerated("NOW() + INTERVAL '7 days'"))
   token     String           @unique @default(cuid())
   createdAt DateTime         @default(now())
 
@@ -193,10 +196,12 @@ model Conversation {
 
   @@unique([sessionId, agentId])
   @@index([agentId, lastEventAt])
+  @@index([agentId, startedAt])
 }
 
 model Event {
   id             String       @id @default(cuid())
+  externalId     String?      @unique
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id])
   agentId        String
@@ -222,6 +227,8 @@ model QualityFlag {
   id             String          @id @default(cuid())
   conversationId String
   conversation   Conversation    @relation(fields: [conversationId], references: [id])
+  agentId        String?
+  agent          Agent?          @relation(fields: [agentId], references: [id])
   eventId        String?
   event          Event?          @relation(fields: [eventId], references: [id])
   category       FlagCategory
@@ -235,6 +242,7 @@ model QualityFlag {
 
   @@index([conversationId])
   @@index([category, severity])
+  @@index([agentId, category])
 }
 
 model AlertConfig {
@@ -250,4 +258,5 @@ model AlertConfig {
   createdAt DateTime  @default(now())
 
   @@index([agentId])
+  @@unique([agentId, userId, type])
 }

@@ -103,7 +103,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     });
   } catch (err) {
     logger.error('GET /api/v1/agents/[id]/conversations failed', {
-      error: String(err),
+      error: err instanceof Error ? err.message : String(err),
       agentId: params.id,
     });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

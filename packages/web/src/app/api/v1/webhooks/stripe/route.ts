@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ received: true });
   } catch (err) {
-    logger.error('Stripe webhook processing failed', { error: String(err), type: event.type });
+    logger.error('Stripe webhook processing failed', { error: err instanceof Error ? err.message : String(err), type: event.type });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
