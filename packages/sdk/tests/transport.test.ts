@@ -4,7 +4,9 @@ import type { EventPayload } from '../src/types';
 
 function makeEvent(overrides?: Partial<EventPayload>): EventPayload {
   return {
+    eventId: 'evt_test',
     sessionId: 'sess_test',
+    agentId: 'agent_1',
     provider: 'anthropic',
     model: 'claude-sonnet-4-6',
     inputTokens: 100,
@@ -72,5 +74,32 @@ describe('Transport', () => {
     expect(transport.bufferedCount).toBe(0);
     const body = JSON.parse(fetchMock.mock.calls[1][1].body);
     expect(body.length).toBe(2);
+  });
+
+  it('calls onDrop when buffer is full and events are dropped', async () => {
+    const onDrop = vi.fn();
+    fetchMock.mockRejectedValue(new Error('Network error'));
+    const transport = new Transport('wt_test', 'https://example.com/api/v1', {
+      maxBufferSize: 2,
+      onDrop,
+    });
+    // Fill the buffer to capacity
+    await transport.send([makeEvent(), makeEvent()]);
+    expect(transport.bufferedCount).toBe(2);
+    // This send will try to add 1 more event but buffer is full — 1 drop
+    await transport.send([makeEvent()]);
+    expect(onDrop).toHaveBeenCalledWith(1);
+  });
+
+  it('console.warns when buffer is full and no onDrop provided', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    fetchMock.mockRejectedValue(new Error('Network error'));
+    const transport = new Transport('wt_test', 'https://example.com/api/v1', { maxBufferSize: 2 });
+    // Fill to capacity
+    await transport.send([makeEvent(), makeEvent()]);
+    // Trigger a drop
+    await transport.send([makeEvent()]);
+    expect(warnSpy).toHaveBeenCalledOnce();
+    expect(warnSpy.mock.calls[0][0]).toContain('[WatchTower]');
   });
 });

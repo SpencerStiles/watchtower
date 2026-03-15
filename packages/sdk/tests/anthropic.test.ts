@@ -20,7 +20,7 @@ describe('wrapAnthropic', () => {
       },
     };
 
-    const wrapped = wrapAnthropic(mockClient as any, 'sess_test', (e) => captured.push(e));
+    const wrapped = wrapAnthropic(mockClient as any, 'sess_test', 'agent_1', (e) => captured.push(e));
 
     const result = await wrapped.messages.create({
       model: 'claude-sonnet-4-6',
@@ -45,7 +45,7 @@ describe('wrapAnthropic', () => {
       },
     };
 
-    const wrapped = wrapAnthropic(mockClient as any, 'sess_test', (e) => captured.push(e));
+    const wrapped = wrapAnthropic(mockClient as any, 'sess_test', 'agent_1', (e) => captured.push(e));
 
     await expect(
       wrapped.messages.create({
@@ -58,5 +58,24 @@ describe('wrapAnthropic', () => {
     expect(captured.length).toBe(1);
     expect(captured[0].isError).toBe(true);
     expect(captured[0].errorMessage).toBe('Rate limited');
+  });
+
+  it('throws when stream: true is passed', async () => {
+    const mockClient = {
+      messages: {
+        create: vi.fn(),
+      },
+    };
+
+    const wrapped = wrapAnthropic(mockClient as any, 'sess_test', 'agent_1', vi.fn());
+
+    await expect(
+      wrapped.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 100,
+        messages: [{ role: 'user', content: 'Hi' }],
+        stream: true,
+      })
+    ).rejects.toThrow('WatchTower does not yet support streaming');
   });
 });

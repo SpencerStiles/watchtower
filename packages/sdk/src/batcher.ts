@@ -15,7 +15,9 @@ export class Batcher {
     this.options = options;
     this.timer = setInterval(() => {
       if (this.queue.length > 0) {
-        this.flush();
+        this.flush().catch((err) => {
+          console.error('[WatchTower] Batcher flush failed:', err);
+        });
       }
     }, options.flushIntervalMs);
   }

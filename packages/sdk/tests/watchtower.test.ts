@@ -53,4 +53,22 @@ describe('WatchTower', () => {
     expect(wrapped.chat.completions).toBeDefined();
     wt.destroy();
   });
+
+  it('throws if apiKey is empty string', () => {
+    expect(() => new WatchTower({ apiKey: '', agentId: 'agent_1' })).toThrow(
+      'WatchTower: apiKey is required'
+    );
+  });
+
+  it('throws if agentId is empty string', () => {
+    expect(() => new WatchTower({ apiKey: 'wt_test', agentId: '' })).toThrow(
+      'WatchTower: agentId is required'
+    );
+  });
+
+  it('throws if apiKey is missing', () => {
+    expect(() => new WatchTower({ apiKey: undefined as any, agentId: 'agent_1' })).toThrow(
+      'WatchTower: apiKey is required'
+    );
+  });
 });

@@ -9,15 +9,21 @@ const DEFAULT_ENDPOINT = 'https://watchtower.dev/api/v1';
 
 export class WatchTower {
   readonly sessionId: string;
+  private agentId: string;
   private transport: Transport;
   private batcher: Batcher;
 
   constructor(config: WatchTowerConfig) {
+    if (!config.apiKey) throw new Error('WatchTower: apiKey is required');
+    if (!config.agentId) throw new Error('WatchTower: agentId is required');
+
     this.sessionId = config.sessionId ?? `sess_${randomBytes(12).toString('hex')}`;
+    this.agentId = config.agentId;
     const endpoint = config.endpoint ?? DEFAULT_ENDPOINT;
 
     this.transport = new Transport(config.apiKey, endpoint, {
       maxBufferSize: config.maxBufferSize ?? 1000,
+      onDrop: config.onDrop,
     });
 
     this.batcher = new Batcher({
@@ -32,12 +38,12 @@ export class WatchTower {
 
     // Detect Anthropic client (has client.messages.create)
     if ((client as any)?.messages?.create) {
-      return wrapAnthropic(client, this.sessionId, onEvent) as T;
+      return wrapAnthropic(client, this.sessionId, this.agentId, onEvent) as T;
     }
 
     // Detect OpenAI client (has client.chat.completions.create)
     if ((client as any)?.chat?.completions?.create) {
-      return wrapOpenAI(client, this.sessionId, onEvent) as T;
+      return wrapOpenAI(client, this.sessionId, this.agentId, onEvent) as T;
     }
 
     throw new Error(
