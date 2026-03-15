@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
 
 export default function NewAgentPage() {
   const router = useRouter();
@@ -51,39 +52,32 @@ export default function NewAgentPage() {
   if (apiKey && agentId) {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
-        <div
-          className="w-full max-w-lg rounded-lg border p-8 space-y-6"
-          style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0, 0, 0.2, 1] }}
+          className="w-full max-w-lg rounded-lg border border-border bg-surface p-8 space-y-6"
         >
           <div>
-            <h1
-              className="text-xl font-bold font-[family-name:var(--font-syne)]"
-              style={{ color: 'var(--text)' }}
-            >
+            <h1 className="text-xl font-bold font-display text-text">
               Agent Created!
             </h1>
-            <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
+            <p className="mt-1 text-sm text-muted">
               Copy your API key now — it will not be shown again.
             </p>
           </div>
 
-          <div
-            className="rounded-md border p-4 space-y-3"
-            style={{ backgroundColor: 'var(--elevated)', borderColor: 'var(--border)' }}
-          >
-            <p className="text-xs font-medium" style={{ color: 'var(--muted)' }}>
+          <div className="rounded-md border border-border bg-elevated p-4 space-y-3">
+            <p className="text-xs font-medium text-muted">
               API KEY
             </p>
             <div className="flex items-center gap-2">
-              <code
-                className="flex-1 text-sm font-[family-name:var(--font-mono)] break-all"
-                style={{ color: 'var(--text)' }}
-              >
+              <code className="flex-1 text-sm font-mono break-all text-text">
                 {apiKey}
               </code>
               <button
                 onClick={handleCopy}
-                className="shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+                className="shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-all active:scale-[0.97]"
                 style={{
                   backgroundColor: copied ? 'var(--success)' : 'var(--accent)',
                   color: '#fff',
@@ -107,30 +101,28 @@ export default function NewAgentPage() {
 
           <button
             onClick={() => router.push(`/agents/${agentId}`)}
-            className="w-full rounded-md px-4 py-2.5 text-sm font-medium transition-colors"
-            style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+            className="w-full rounded-md px-4 py-2.5 text-sm font-medium bg-accent text-white transition-all active:scale-[0.97]"
           >
             Go to Agent Dashboard
           </button>
-        </div>
+        </motion.div>
       </div>
     );
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center p-6">
-      <div
-        className="w-full max-w-md rounded-lg border p-8 space-y-6"
-        style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0, 0, 0.2, 1] }}
+        className="w-full max-w-md rounded-lg border border-border bg-surface p-8 space-y-6"
       >
         <div>
-          <h1
-            className="text-xl font-bold font-[family-name:var(--font-syne)]"
-            style={{ color: 'var(--text)' }}
-          >
+          <h1 className="text-xl font-bold font-display text-text">
             New Agent
           </h1>
-          <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
+          <p className="mt-1 text-sm text-muted">
             Create a new AI agent to monitor
           </p>
         </div>
@@ -139,8 +131,7 @@ export default function NewAgentPage() {
           <div>
             <label
               htmlFor="name"
-              className="block text-sm font-medium mb-1.5"
-              style={{ color: 'var(--text)' }}
+              className="block text-sm font-medium mb-1.5 text-text"
             >
               Agent Name
             </label>
@@ -152,19 +143,12 @@ export default function NewAgentPage() {
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Customer Support Bot"
               required
-              className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-1"
-              style={{
-                backgroundColor: 'var(--elevated)',
-                borderColor: 'var(--border)',
-                color: 'var(--text)',
-                // @ts-expect-error custom property
-                '--tw-ring-color': 'var(--accent)',
-              }}
+              className="w-full rounded-md border border-border bg-elevated px-3 py-2 text-sm text-text"
             />
           </div>
 
           {error && (
-            <p className="text-sm" style={{ color: 'var(--danger)' }}>
+            <p className="text-sm text-danger">
               {error}
             </p>
           )}
@@ -173,22 +157,20 @@ export default function NewAgentPage() {
             <button
               type="button"
               onClick={() => router.push('/agents')}
-              className="flex-1 rounded-md border px-4 py-2.5 text-sm font-medium transition-colors hover:bg-[#1e1e24]"
-              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+              className="flex-1 rounded-md border border-border px-4 py-2.5 text-sm font-medium text-text transition-all active:scale-[0.97] hover:bg-elevated"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading || !name.trim()}
-              className="flex-1 rounded-md px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
-              style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+              className="flex-1 rounded-md px-4 py-2.5 text-sm font-medium bg-accent text-white transition-all active:scale-[0.97] disabled:opacity-50"
             >
               {loading ? 'Creating…' : 'Create Agent'}
             </button>
           </div>
         </form>
-      </div>
+      </motion.div>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { TimeRangePicker } from './time-range-picker';
+import { FadeUp, StaggerList, StaggerItem } from '@/components/motion';
 
 interface PageProps {
   params: { id: string };
@@ -29,7 +30,10 @@ function StatusBadge({ status }: { status: string }) {
       className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium border"
       style={{ color, borderColor: color, backgroundColor: `${color}18` }}
     >
-      <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
+      <span
+        className={`inline-block w-1.5 h-1.5 rounded-full${status === 'ACTIVE' ? ' animate-pulse-dot' : ''}`}
+        style={{ backgroundColor: color }}
+      />
       {status.charAt(0) + status.slice(1).toLowerCase()}
     </span>
   );
@@ -54,6 +58,7 @@ function DonutChart({ score }: { score: number }) {
         strokeDasharray={`${filled} ${gap}`}
         strokeLinecap="round"
         transform="rotate(-90 70 70)"
+        style={{ transition: 'stroke-dasharray 0.8s ease-out' }}
       />
       <text x="70" y="74" textAnchor="middle" fontSize="24" fontWeight="bold" fill={scoreColor(score)}>
         {score}
@@ -67,16 +72,15 @@ function BarChart({ data }: { data: { label: string; value: number; max: number 
     <div className="space-y-2">
       {data.map(({ label, value, max }) => (
         <div key={label} className="space-y-1">
-          <div className="flex justify-between text-xs" style={{ color: 'var(--muted)' }}>
+          <div className="flex justify-between text-xs text-muted">
             <span>{label}</span>
-            <span className="font-[family-name:var(--font-mono)]">{value.toLocaleString()}</span>
+            <span className="font-mono">{value.toLocaleString()}</span>
           </div>
-          <div className="h-1.5 rounded-full" style={{ backgroundColor: 'var(--border)' }}>
+          <div className="h-1.5 rounded-full bg-border">
             <div
-              className="h-1.5 rounded-full"
+              className="h-1.5 rounded-full bg-accent"
               style={{
                 width: max > 0 ? `${Math.min(100, (value / max) * 100)}%` : '0%',
-                backgroundColor: 'var(--accent)',
               }}
             />
           </div>
@@ -171,63 +175,53 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <h1
-              className="text-2xl font-bold font-[family-name:var(--font-syne)]"
-              style={{ color: 'var(--text)' }}
-            >
-              {agent.name}
-            </h1>
-            <StatusBadge status={agent.status} />
+      <FadeUp>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold font-display text-text">
+                {agent.name}
+              </h1>
+              <StatusBadge status={agent.status} />
+            </div>
+            <div className="flex items-center gap-2">
+              <code className="text-xs font-mono text-muted">
+                {maskedKey}
+              </code>
+              <span className="text-xs text-muted">Key shown only at creation</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <code
-              className="text-xs font-[family-name:var(--font-mono)]"
-              style={{ color: 'var(--muted)' }}
-            >
-              {maskedKey}
-            </code>
-            <span className="text-xs" style={{ color: 'var(--muted)' }}>Key shown only at creation</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <TimeRangePicker current={range} />
-          <Link
-            href={`/agents/${agent.id}/conversations`}
-            className="rounded-md border px-3 py-1.5 text-sm transition-colors hover:bg-[#1e1e24]"
-            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
-          >
-            Conversations
-          </Link>
-          <Link
-            href={`/agents/${agent.id}/alerts`}
-            className="rounded-md border px-3 py-1.5 text-sm transition-colors hover:bg-[#1e1e24]"
-            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
-          >
-            Alerts
-          </Link>
-          {session.user.role === 'DEVELOPER' && (
+          <div className="flex flex-wrap items-center gap-3">
+            <TimeRangePicker current={range} />
             <Link
-              href={`/agents/${agent.id}/clients`}
-              className="rounded-md border px-3 py-1.5 text-sm transition-colors hover:bg-[#1e1e24]"
-              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+              href={`/agents/${agent.id}/conversations`}
+              className="rounded-md border border-border px-3 py-1.5 text-sm text-text transition-all hover:bg-[#1e1e24] active:scale-[0.97]"
             >
-              Clients
+              Conversations
             </Link>
-          )}
+            <Link
+              href={`/agents/${agent.id}/alerts`}
+              className="rounded-md border border-border px-3 py-1.5 text-sm text-text transition-all hover:bg-[#1e1e24] active:scale-[0.97]"
+            >
+              Alerts
+            </Link>
+            {session.user.role === 'DEVELOPER' && (
+              <Link
+                href={`/agents/${agent.id}/clients`}
+                className="rounded-md border border-border px-3 py-1.5 text-sm text-text transition-all hover:bg-[#1e1e24] active:scale-[0.97]"
+              >
+                Clients
+              </Link>
+            )}
+          </div>
         </div>
-      </div>
+      </FadeUp>
 
       {/* Grid: Quality Hero + Health + Cost */}
-      <div className="grid grid-cols-3 gap-4">
+      <StaggerList className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Quality Score Hero */}
-        <div
-          className="rounded-lg border p-6 flex flex-col items-center gap-4"
-          style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}
-        >
-          <h2 className="text-sm font-medium w-full" style={{ color: 'var(--muted)' }}>
+        <StaggerItem className="rounded-lg border bg-surface border-border p-6 flex flex-col items-center gap-4">
+          <h2 className="text-sm font-medium w-full text-muted">
             Quality Score
           </h2>
           {avgScore !== null ? (
@@ -236,13 +230,10 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
               <div className="w-full space-y-1.5">
                 {flagBreakdown.map((fb) => (
                   <div key={fb.category} className="flex justify-between text-xs">
-                    <span style={{ color: 'var(--muted)' }}>
+                    <span className="text-muted">
                       {fb.category.replace(/_/g, ' ')}
                     </span>
-                    <span
-                      className="font-[family-name:var(--font-mono)]"
-                      style={{ color: 'var(--text)' }}
-                    >
+                    <span className="font-mono text-text">
                       {fb._count.id}
                     </span>
                   </div>
@@ -250,18 +241,15 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
               </div>
             </>
           ) : (
-            <p className="text-sm" style={{ color: 'var(--muted)' }}>
+            <p className="text-sm text-muted">
               No scored conversations yet
             </p>
           )}
-        </div>
+        </StaggerItem>
 
         {/* Health Panel */}
-        <div
-          className="rounded-lg border p-6 space-y-4"
-          style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}
-        >
-          <h2 className="text-sm font-medium" style={{ color: 'var(--muted)' }}>
+        <StaggerItem className="rounded-lg border bg-surface border-border p-6 space-y-4">
+          <h2 className="text-sm font-medium text-muted">
             Health
           </h2>
           <div className="space-y-3">
@@ -288,11 +276,11 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
               },
             ].map(({ label, value, color }) => (
               <div key={label} className="flex justify-between items-center">
-                <span className="text-sm" style={{ color: 'var(--muted)' }}>
+                <span className="text-sm text-muted">
                   {label}
                 </span>
                 <span
-                  className="text-sm font-semibold font-[family-name:var(--font-mono)]"
+                  className="text-sm font-semibold font-mono"
                   style={{ color }}
                 >
                   {value}
@@ -300,14 +288,11 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
               </div>
             ))}
           </div>
-        </div>
+        </StaggerItem>
 
         {/* Cost Panel */}
-        <div
-          className="rounded-lg border p-6 space-y-4"
-          style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}
-        >
-          <h2 className="text-sm font-medium" style={{ color: 'var(--muted)' }}>
+        <StaggerItem className="rounded-lg border bg-surface border-border p-6 space-y-4">
+          <h2 className="text-sm font-medium text-muted">
             Cost
           </h2>
           <div className="space-y-3">
@@ -318,28 +303,22 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
               { label: 'Output Tokens', value: outputTokens.toLocaleString() },
             ].map(({ label, value }) => (
               <div key={label} className="flex justify-between items-center">
-                <span className="text-sm" style={{ color: 'var(--muted)' }}>
+                <span className="text-sm text-muted">
                   {label}
                 </span>
-                <span
-                  className="text-sm font-semibold font-[family-name:var(--font-mono)]"
-                  style={{ color: 'var(--text)' }}
-                >
+                <span className="text-sm font-semibold font-mono text-text">
                   {value}
                 </span>
               </div>
             ))}
           </div>
-        </div>
-      </div>
+        </StaggerItem>
+      </StaggerList>
 
       {/* Token Analytics + Latency */}
-      <div className="grid grid-cols-2 gap-4">
-        <div
-          className="rounded-lg border p-6 space-y-4"
-          style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}
-        >
-          <h2 className="text-sm font-medium" style={{ color: 'var(--muted)' }}>
+      <StaggerList className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <StaggerItem className="rounded-lg border bg-surface border-border p-6 space-y-4">
+          <h2 className="text-sm font-medium text-muted">
             Token Analytics
           </h2>
           <BarChart
@@ -356,13 +335,10 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
               },
             ]}
           />
-        </div>
+        </StaggerItem>
 
-        <div
-          className="rounded-lg border p-6 space-y-4"
-          style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}
-        >
-          <h2 className="text-sm font-medium" style={{ color: 'var(--muted)' }}>
+        <StaggerItem className="rounded-lg border bg-surface border-border p-6 space-y-4">
+          <h2 className="text-sm font-medium text-muted">
             Latency
           </h2>
           <div className="grid grid-cols-3 gap-3">
@@ -373,84 +349,75 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
             ].map(({ label, value }) => (
               <div
                 key={label}
-                className="rounded-md p-3 text-center"
-                style={{ backgroundColor: 'var(--elevated)' }}
+                className="rounded-md p-3 text-center bg-elevated"
               >
-                <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                <p className="text-xs text-muted">
                   {label}
                 </p>
-                <p
-                  className="mt-1 text-lg font-bold font-[family-name:var(--font-mono)]"
-                  style={{ color: 'var(--text)' }}
-                >
+                <p className="mt-1 text-lg font-bold font-mono text-text">
                   {value}
-                  <span className="text-xs font-normal ml-0.5" style={{ color: 'var(--muted)' }}>
+                  <span className="text-xs font-normal ml-0.5 text-muted">
                     ms
                   </span>
                 </p>
               </div>
             ))}
           </div>
-          <p className="text-xs" style={{ color: 'var(--muted)' }}>
+          <p className="text-xs text-muted">
             P50 = measured avg; P95/P99 are estimated
           </p>
-        </div>
-      </div>
+        </StaggerItem>
+      </StaggerList>
 
       {/* Recent Flagged Conversations */}
       {recentFlagged.length > 0 && (
-        <div
-          className="rounded-lg border p-6 space-y-4"
-          style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}
-        >
-          <h2 className="text-sm font-medium" style={{ color: 'var(--muted)' }}>
-            Recent Flagged Conversations
-          </h2>
-          <div className="space-y-2">
-            {recentFlagged.map((conv) => {
-              const topFlag = conv.flags[0];
-              return (
-                <Link
-                  key={conv.id}
-                  href={`/agents/${agent.id}/conversations?highlight=${conv.id}`}
-                  className="flex items-center justify-between rounded-md border px-4 py-3 hover:bg-[#1a1a20] transition-colors"
-                  style={{ borderColor: 'var(--border)' }}
-                >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className="text-xs font-[family-name:var(--font-mono)]"
-                      style={{ color: 'var(--muted)' }}
+        <FadeUp delay={0.15}>
+          <div className="rounded-lg border bg-surface border-border p-6 space-y-4">
+            <h2 className="text-sm font-medium text-muted">
+              Recent Flagged Conversations
+            </h2>
+            <StaggerList className="space-y-2">
+              {recentFlagged.map((conv) => {
+                const topFlag = conv.flags[0];
+                return (
+                  <StaggerItem key={conv.id}>
+                    <Link
+                      href={`/agents/${agent.id}/conversations?highlight=${conv.id}`}
+                      className="flex items-center justify-between rounded-md border border-border px-4 py-3 hover:bg-[#1a1a20] transition-colors"
                     >
-                      {conv.sessionId.slice(0, 16)}…
-                    </span>
-                    {topFlag && (
-                      <span
-                        className="rounded px-1.5 py-0.5 text-xs"
-                        style={{
-                          backgroundColor:
-                            topFlag.severity === 'CRITICAL' || topFlag.severity === 'HIGH'
-                              ? 'rgba(239,68,68,0.12)'
-                              : 'rgba(234,179,8,0.12)',
-                          color:
-                            topFlag.severity === 'CRITICAL' || topFlag.severity === 'HIGH'
-                              ? 'var(--danger)'
-                              : 'var(--warning)',
-                        }}
-                      >
-                        {topFlag.category.replace(/_/g, ' ')}
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-mono text-muted">
+                          {conv.sessionId.slice(0, 16)}…
+                        </span>
+                        {topFlag && (
+                          <span
+                            className="rounded px-1.5 py-0.5 text-xs"
+                            style={{
+                              backgroundColor:
+                                topFlag.severity === 'CRITICAL' || topFlag.severity === 'HIGH'
+                                  ? 'rgba(239,68,68,0.12)'
+                                  : 'rgba(234,179,8,0.12)',
+                              color:
+                                topFlag.severity === 'CRITICAL' || topFlag.severity === 'HIGH'
+                                  ? 'var(--danger)'
+                                  : 'var(--warning)',
+                            }}
+                          >
+                            {topFlag.category.replace(/_/g, ' ')}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted">
+                        {conv.flags.length} flag{conv.flags.length !== 1 ? 's' : ''}
                       </span>
-                    )}
-                  </div>
-                  <span className="text-xs" style={{ color: 'var(--muted)' }}>
-                    {conv.flags.length} flag{conv.flags.length !== 1 ? 's' : ''}
-                  </span>
-                </Link>
-              );
-            })}
+                    </Link>
+                  </StaggerItem>
+                );
+              })}
+            </StaggerList>
           </div>
-        </div>
+        </FadeUp>
       )}
     </div>
   );
 }
-

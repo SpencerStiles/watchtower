@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
+import { AnimatePresence, motion } from 'framer-motion';
+import { TableSkeleton } from '@/components/skeleton';
 
 interface ConversationRow {
   id: string;
@@ -78,20 +80,12 @@ function JsonViewer({ data }: { data: unknown }) {
     <div>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="text-xs font-medium"
-        style={{ color: 'var(--accent)' }}
+        className="text-xs font-medium text-accent"
       >
         {open ? '▾ Hide' : '▸ Show'} payload
       </button>
       {open && (
-        <pre
-          className="mt-2 rounded p-3 text-xs overflow-auto max-h-48 font-[family-name:var(--font-mono)]"
-          style={{
-            backgroundColor: 'var(--elevated)',
-            color: 'var(--text)',
-            border: '1px solid var(--border)',
-          }}
-        >
+        <pre className="mt-2 rounded p-3 text-xs overflow-auto max-h-48 font-mono bg-elevated text-text border border-border">
           {JSON.stringify(data, null, 2)}
         </pre>
       )}
@@ -190,14 +184,11 @@ export default function ConversationsPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1
-          className="text-xl font-bold font-[family-name:var(--font-syne)]"
-          style={{ color: 'var(--text)' }}
-        >
+        <h1 className="text-xl font-bold font-display text-text">
           Conversations
         </h1>
         {pagination && (
-          <p className="text-sm" style={{ color: 'var(--muted)' }}>
+          <p className="text-sm text-muted">
             {pagination.total.toLocaleString()} total
           </p>
         )}
@@ -210,12 +201,7 @@ export default function ConversationsPage() {
           placeholder="Search session ID…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-60 rounded-md border px-3 py-1.5 text-sm outline-none"
-          style={{
-            backgroundColor: 'var(--elevated)',
-            borderColor: 'var(--border)',
-            color: 'var(--text)',
-          }}
+          className="w-60 rounded-md border border-border px-3 py-1.5 text-sm bg-elevated text-text"
         />
         <select
           value={filterCategory}
@@ -223,12 +209,7 @@ export default function ConversationsPage() {
             setFilterCategory(e.target.value);
             setPage(1);
           }}
-          className="rounded-md border px-3 py-1.5 text-sm outline-none"
-          style={{
-            backgroundColor: 'var(--elevated)',
-            borderColor: 'var(--border)',
-            color: 'var(--text)',
-          }}
+          className="rounded-md border border-border px-3 py-1.5 text-sm bg-elevated text-text"
         >
           <option value="">All flag types</option>
           {FLAG_CATEGORIES.map((cat) => (
@@ -240,26 +221,21 @@ export default function ConversationsPage() {
       </div>
 
       {/* Table */}
-      <div
-        className="rounded-lg border overflow-hidden"
-        style={{ borderColor: 'var(--border)' }}
-      >
+      <div className="rounded-lg border border-border overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center" style={{ color: 'var(--muted)' }}>
-            <p className="text-sm">Loading…</p>
+          <div className="p-6">
+            <TableSkeleton rows={5} cols={6} />
           </div>
         ) : filteredConversations.length === 0 ? (
-          <div className="p-12 text-center" style={{ color: 'var(--muted)' }}>
+          <div className="p-12 text-center text-muted">
             <p className="text-sm">No conversations found.</p>
           </div>
         ) : (
           <div>
             {/* Header */}
             <div
-              className="grid text-xs font-medium px-4 py-3"
+              className="grid text-xs font-medium px-4 py-3 bg-elevated text-muted"
               style={{
-                backgroundColor: 'var(--elevated)',
-                color: 'var(--muted)',
                 gridTemplateColumns: '2fr 80px 70px 90px 100px 80px 80px',
                 borderBottom: '1px solid var(--border)',
               }}
@@ -279,204 +255,193 @@ export default function ConversationsPage() {
               const totalFlags = Object.values(conv.flagCounts).reduce((a, b) => a + b, 0);
 
               return (
-                <div
-                  key={conv.id}
-                  className="border-t"
-                  style={{ borderColor: 'var(--border)' }}
-                >
+                <div key={conv.id} className="border-t border-border">
                   {/* Row */}
                   <div
-                    className="grid items-center px-4 py-3 cursor-pointer hover:bg-[#1a1a20] transition-colors"
+                    className="grid items-center px-4 py-3 cursor-pointer hover:bg-elevated transition-colors"
                     style={{
                       gridTemplateColumns: '2fr 80px 70px 90px 100px 80px 80px',
                     }}
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={isExpanded}
                     onClick={() => handleExpand(conv.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleExpand(conv.id);
+                      }
+                    }}
                   >
-                    <span
-                      className="text-sm font-[family-name:var(--font-mono)] truncate"
-                      style={{ color: 'var(--text)' }}
-                    >
+                    <span className="text-sm font-mono truncate text-text">
                       {conv.sessionId}
                     </span>
                     <span
-                      className="text-sm font-[family-name:var(--font-mono)] font-bold"
+                      className="text-sm font-mono font-bold"
                       style={{ color: scoreColor(conv.qualityScore) }}
                     >
                       {conv.qualityScore ?? '—'}
                     </span>
-                    <span
-                      className="text-sm font-[family-name:var(--font-mono)]"
-                      style={{ color: 'var(--text)' }}
-                    >
+                    <span className="text-sm font-mono text-text">
                       {conv.eventCount}
                     </span>
-                    <span
-                      className="text-sm font-[family-name:var(--font-mono)]"
-                      style={{ color: 'var(--text)' }}
-                    >
+                    <span className="text-sm font-mono text-text">
                       ${(conv.totalCostCents / 100).toFixed(4)}
                     </span>
-                    <span className="text-xs" style={{ color: 'var(--muted)' }}>
+                    <span className="text-xs text-muted">
                       {new Date(conv.startedAt).toLocaleDateString()}
                     </span>
                     <span
-                      className="text-sm font-[family-name:var(--font-mono)]"
+                      className="text-sm font-mono"
                       style={{ color: totalFlags > 0 ? 'var(--warning)' : 'var(--muted)' }}
                     >
                       {totalFlags > 0 ? totalFlags : '—'}
                     </span>
-                    <span className="text-xs text-right" style={{ color: 'var(--accent)' }}>
+                    <span className="text-xs text-right text-accent">
                       {isExpanded ? '▲ Hide' : '▼ Show'}
                     </span>
                   </div>
 
                   {/* Expanded detail */}
-                  {isExpanded && (
-                    <div
-                      className="px-4 pb-4 space-y-4 border-t"
-                      style={{
-                        borderColor: 'var(--border)',
-                        backgroundColor: 'var(--elevated)',
-                      }}
-                    >
-                      {detailLoading === conv.id ? (
-                        <p className="py-4 text-sm text-center" style={{ color: 'var(--muted)' }}>
-                          Loading detail…
-                        </p>
-                      ) : convDetail ? (
-                        <>
-                          {/* Flags */}
-                          {convDetail.flags.length > 0 && (
-                            <div className="pt-4 space-y-2">
-                              <p
-                                className="text-xs font-semibold uppercase tracking-wider"
-                                style={{ color: 'var(--muted)' }}
-                              >
-                                Quality Flags
-                              </p>
-                              {convDetail.flags.map((flag) => (
-                                <div
-                                  key={flag.id}
-                                  className="rounded-md border p-3 flex items-start justify-between gap-4"
-                                  style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface)' }}
-                                >
-                                  <div className="space-y-1 flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <span
-                                        className="text-xs font-medium"
-                                        style={{
-                                          color:
-                                            flag.severity === 'CRITICAL' || flag.severity === 'HIGH'
-                                              ? 'var(--danger)'
-                                              : 'var(--warning)',
-                                        }}
-                                      >
-                                        {flag.severity}
-                                      </span>
-                                      <span className="text-xs" style={{ color: 'var(--muted)' }}>
-                                        {flag.category.replace(/_/g, ' ')}
-                                      </span>
-                                    </div>
-                                    <p className="text-sm" style={{ color: 'var(--text)' }}>
-                                      {flag.reason}
-                                    </p>
-                                    {flag.resolution && (
-                                      <span
-                                        className="inline-block text-xs rounded px-1.5 py-0.5"
-                                        style={{
-                                          backgroundColor:
-                                            flag.resolution === 'ACCEPTABLE'
-                                              ? 'rgba(34,197,94,0.12)'
-                                              : 'rgba(239,68,68,0.12)',
-                                          color:
-                                            flag.resolution === 'ACCEPTABLE'
-                                              ? 'var(--success)'
-                                              : 'var(--danger)',
-                                        }}
-                                      >
-                                        {flag.resolution.replace(/_/g, ' ')}
-                                      </span>
-                                    )}
-                                  </div>
-                                  {!flag.resolution && (
-                                    <div className="flex gap-2 shrink-0">
-                                      <button
-                                        onClick={() => resolveFlag(flag.id, 'ACCEPTABLE')}
-                                        className="rounded px-2.5 py-1 text-xs font-medium transition-colors"
-                                        style={{
-                                          backgroundColor: 'rgba(34,197,94,0.12)',
-                                          color: 'var(--success)',
-                                          border: '1px solid var(--success)',
-                                        }}
-                                      >
-                                        Acceptable
-                                      </button>
-                                      <button
-                                        onClick={() => resolveFlag(flag.id, 'NEEDS_FIX')}
-                                        className="rounded px-2.5 py-1 text-xs font-medium transition-colors"
-                                        style={{
-                                          backgroundColor: 'rgba(239,68,68,0.12)',
-                                          color: 'var(--danger)',
-                                          border: '1px solid var(--danger)',
-                                        }}
-                                      >
-                                        Needs Fix
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Events */}
-                          <div className="space-y-2">
-                            <p
-                              className="text-xs font-semibold uppercase tracking-wider"
-                              style={{ color: 'var(--muted)' }}
-                            >
-                              Events ({convDetail.events.length})
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="px-4 pb-4 space-y-4 border-t border-border bg-elevated">
+                          {detailLoading === conv.id ? (
+                            <p className="py-4 text-sm text-center text-muted">
+                              Loading detail…
                             </p>
-                            {convDetail.events.map((ev) => (
-                              <div
-                                key={ev.id}
-                                className="rounded-md border p-3 space-y-2"
-                                style={{
-                                  borderColor: ev.isError ? 'var(--danger)' : 'var(--border)',
-                                  backgroundColor: 'var(--surface)',
-                                }}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2 text-xs">
-                                    <span style={{ color: 'var(--text)' }}>
-                                      {ev.provider} / {ev.model}
-                                    </span>
-                                    {ev.isError && (
-                                      <span style={{ color: 'var(--danger)' }}>ERROR</span>
-                                    )}
-                                  </div>
-                                  <div
-                                    className="flex gap-3 text-xs font-[family-name:var(--font-mono)]"
-                                    style={{ color: 'var(--muted)' }}
-                                  >
-                                    <span>{ev.latencyMs}ms</span>
-                                    <span>${(ev.costCents / 100).toFixed(6)}</span>
-                                    <span>{ev.inputTokens + ev.outputTokens} tok</span>
-                                  </div>
-                                </div>
-                                {ev.isError && ev.errorMessage && (
-                                  <p className="text-xs" style={{ color: 'var(--danger)' }}>
-                                    {ev.errorMessage}
+                          ) : convDetail ? (
+                            <>
+                              {/* Flags */}
+                              {convDetail.flags.length > 0 && (
+                                <div className="pt-4 space-y-2">
+                                  <p className="text-xs font-semibold uppercase tracking-wider text-muted">
+                                    Quality Flags
                                   </p>
-                                )}
-                                <JsonViewer data={{ request: ev.requestBody, response: ev.responseBody }} />
+                                  {convDetail.flags.map((flag) => (
+                                    <div
+                                      key={flag.id}
+                                      className="rounded-md border border-border p-3 flex items-start justify-between gap-4 bg-surface"
+                                    >
+                                      <div className="space-y-1 flex-1">
+                                        <div className="flex items-center gap-2">
+                                          <span
+                                            className="text-xs font-medium"
+                                            style={{
+                                              color:
+                                                flag.severity === 'CRITICAL' || flag.severity === 'HIGH'
+                                                  ? 'var(--danger)'
+                                                  : 'var(--warning)',
+                                            }}
+                                          >
+                                            {flag.severity}
+                                          </span>
+                                          <span className="text-xs text-muted">
+                                            {flag.category.replace(/_/g, ' ')}
+                                          </span>
+                                        </div>
+                                        <p className="text-sm text-text">
+                                          {flag.reason}
+                                        </p>
+                                        {flag.resolution && (
+                                          <span
+                                            className="inline-block text-xs rounded px-1.5 py-0.5"
+                                            style={{
+                                              backgroundColor:
+                                                flag.resolution === 'ACCEPTABLE'
+                                                  ? 'rgba(34,197,94,0.12)'
+                                                  : 'rgba(239,68,68,0.12)',
+                                              color:
+                                                flag.resolution === 'ACCEPTABLE'
+                                                  ? 'var(--success)'
+                                                  : 'var(--danger)',
+                                            }}
+                                          >
+                                            {flag.resolution.replace(/_/g, ' ')}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {!flag.resolution && (
+                                        <div className="flex gap-2 shrink-0">
+                                          <button
+                                            onClick={() => resolveFlag(flag.id, 'ACCEPTABLE')}
+                                            className="rounded px-2.5 py-1 text-xs font-medium transition-all active:scale-[0.97]"
+                                            style={{
+                                              backgroundColor: 'rgba(34,197,94,0.12)',
+                                              color: 'var(--success)',
+                                              border: '1px solid var(--success)',
+                                            }}
+                                          >
+                                            Acceptable
+                                          </button>
+                                          <button
+                                            onClick={() => resolveFlag(flag.id, 'NEEDS_FIX')}
+                                            className="rounded px-2.5 py-1 text-xs font-medium transition-all active:scale-[0.97]"
+                                            style={{
+                                              backgroundColor: 'rgba(239,68,68,0.12)',
+                                              color: 'var(--danger)',
+                                              border: '1px solid var(--danger)',
+                                            }}
+                                          >
+                                            Needs Fix
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Events */}
+                              <div className="space-y-2">
+                                <p className="text-xs font-semibold uppercase tracking-wider text-muted">
+                                  Events ({convDetail.events.length})
+                                </p>
+                                {convDetail.events.map((ev) => (
+                                  <div
+                                    key={ev.id}
+                                    className="rounded-md border p-3 space-y-2 bg-surface"
+                                    style={{
+                                      borderColor: ev.isError ? 'var(--danger)' : 'var(--border)',
+                                    }}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2 text-xs">
+                                        <span className="text-text">
+                                          {ev.provider} / {ev.model}
+                                        </span>
+                                        {ev.isError && (
+                                          <span style={{ color: 'var(--danger)' }}>ERROR</span>
+                                        )}
+                                      </div>
+                                      <div className="flex gap-3 text-xs font-mono text-muted">
+                                        <span>{ev.latencyMs}ms</span>
+                                        <span>${(ev.costCents / 100).toFixed(6)}</span>
+                                        <span>{ev.inputTokens + ev.outputTokens} tok</span>
+                                      </div>
+                                    </div>
+                                    {ev.isError && ev.errorMessage && (
+                                      <p className="text-xs" style={{ color: 'var(--danger)' }}>
+                                        {ev.errorMessage}
+                                      </p>
+                                    )}
+                                    <JsonViewer data={{ request: ev.requestBody, response: ev.responseBody }} />
+                                  </div>
+                                ))}
                               </div>
-                            ))}
-                          </div>
-                        </>
-                      ) : null}
-                    </div>
-                  )}
+                            </>
+                          ) : null}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               );
             })}
@@ -487,23 +452,21 @@ export default function ConversationsPage() {
       {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm" style={{ color: 'var(--muted)' }}>
+          <p className="text-sm text-muted">
             Page {pagination.page} of {pagination.totalPages}
           </p>
           <div className="flex gap-2">
             <button
               disabled={page === 1}
               onClick={() => setPage((p) => p - 1)}
-              className="rounded-md border px-3 py-1.5 text-sm disabled:opacity-40 transition-colors hover:bg-[#1e1e24]"
-              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+              className="rounded-md border border-border px-3 py-1.5 text-sm text-text disabled:opacity-40 transition-all hover:bg-elevated active:scale-[0.97]"
             >
               Previous
             </button>
             <button
               disabled={page === pagination.totalPages}
               onClick={() => setPage((p) => p + 1)}
-              className="rounded-md border px-3 py-1.5 text-sm disabled:opacity-40 transition-colors hover:bg-[#1e1e24]"
-              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+              className="rounded-md border border-border px-3 py-1.5 text-sm text-text disabled:opacity-40 transition-all hover:bg-elevated active:scale-[0.97]"
             >
               Next
             </button>
