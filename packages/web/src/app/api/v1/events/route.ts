@@ -66,7 +66,8 @@ export async function POST(req: NextRequest) {
 
   // Payload size check
   const contentLength = req.headers.get('content-length');
-  if (contentLength && parseInt(contentLength) > 1_048_576) {
+  const contentLengthBytes = contentLength ? Number(contentLength) : 0;
+  if (Number.isFinite(contentLengthBytes) && contentLengthBytes > 1_048_576) {
     return NextResponse.json(
       { error: 'Payload too large. Maximum request size is 1MB.', requestId },
       { status: 413, headers: CORS_HEADERS }

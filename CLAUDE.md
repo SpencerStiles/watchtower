@@ -83,7 +83,7 @@ SDK (batch of events)
 
 - **In-memory state:** Rate limiter, SSE pool, and alert dedup are in-memory Maps. Resets on deploy. Single-instance only. Redis migration tracked in TODOS.md.
 - **No streaming support:** SDK throws on `stream:true`. Tracked in TODOS.md.
-- **No event idempotency (yet):** Tracked for implementation — add eventId UUID to SDK.
+- **Per-event error isolation is best-effort:** Event ingestion uses a single DB transaction for the batch. A DB-level error on one event (deadlock, timeout) aborts the transaction and causes subsequent events in the same batch to fail. Nothing is committed, and idempotent `externalId` upserts make client retries safe.
 
 ## Development
 
